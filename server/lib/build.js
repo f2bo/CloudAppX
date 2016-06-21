@@ -100,7 +100,7 @@ function makePri(file) {
           })
           .then(function (toolPath) {
             var configPath = path.resolve(__dirname, '..', 'assets', 'priconfig.xml');
-            var priFilePath = path.resolve(file.out, 'resources.pri');
+            var priFilePath = path.join(file.out, file.name + '.pri');
             cmdLine = '"' + toolPath + '" new /o /pr ' + file.dir + ' /cf ' + configPath + ' /of ' + priFilePath;
             var deferred = Q.defer();
             exec(cmdLine, function (err, stdout, stderr) {             
