@@ -113,7 +113,7 @@ app.post('/v2/build', multer({ dest: './uploads/' }), function (req, res) {
 });
 
 app.post('/v2/makepri', multer({ dest: './uploads/' }), function (req, res) {
-  console.log('Building package...');
+  console.log('Indexing app resources...');
   if (req.files) {
     console.log(util.inspect(req.files));
     var filepath;
@@ -123,7 +123,7 @@ app.post('/v2/makepri', multer({ dest: './uploads/' }), function (req, res) {
         res.set('Content-type', 'application/octet-stream');
         var reader = fs.createReadStream(filepath);
         reader.on('end', function () {
-          console.log('Package download completed.');
+          console.log('PRI file download completed.');
           res.status(201).end();
         });
         reader.on('error', function (err) {
@@ -141,7 +141,7 @@ app.post('/v2/makepri', multer({ dest: './uploads/' }), function (req, res) {
           var packageDir = path.dirname(filepath);
           rmdir(packageDir)
             .catch(function (err) {
-              console.log('Error deleting generated package: ' + err);
+              console.log('Error deleting generated PRI file: ' + err);
             });
         }
       })
