@@ -17,10 +17,13 @@ function getAppx(file) {
   
   return Q(file.xml)
     .then(getContents)
-    .tap(function (file) { ctx = file; })
-    .then(makePri)
-    .thenResolve(ctx)
-    .then(makeAppx)
+    .then(function (file) { ctx = file; })
+    .then(function () {
+      return makePri(ctx);
+    })
+    .then(function () {
+      return makeAppx(ctx);
+    })
     .finally(function () {
       if (ctx) {
         return deleteContents(ctx);
