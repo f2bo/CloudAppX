@@ -18,13 +18,29 @@ function getAppx(file) {
   return Q(file.xml)
     .then(getContents)
     .then(function (file) { ctx = file; })
-    .then(function () {
+    .then(function (file) {
       return makePri(ctx);
     })
-    .then(function () {
+    .then(function (file) {
       return makeAppx(ctx);
     })
     .finally(function () {
+      if (ctx) {
+        return deleteContents(ctx);
+      }
+    });
+}
+
+function getPri(file) {
+  var ctx;
+  
+  return Q(file.xml)
+    .then(getContents)
+    .then(function (file) { ctx = file; })
+    .then(function (file) {
+      return makePri(ctx);
+    })
+    .finally(function (file) {
       if (ctx) {
         return deleteContents(ctx);
       }
@@ -72,7 +88,7 @@ function makePri(file) {
           })
           .then(function (toolPath) {
             var configPath = path.resolve(__dirname, '..', 'assets', 'priconfig.xml');
-            var priFilePath = path.resolve(file.dir, 'resources.pri');
+            var priFilePath = path.resolve(file.out, 'resources.pri');
             cmdLine = '"' + toolPath + '" new /o /pr ' + file.dir + ' /cf ' + configPath + ' /of ' + priFilePath;
             var deferred = Q.defer();
             exec(cmdLine, function (err, stdout, stderr) {             
@@ -173,4 +189,4 @@ function deleteContents(ctx) {
           });
 }
 
-module.exports = { getAppx: getAppx, makeAppx: makeAppx, makePri: makePri };
+module.exports = { getAppx: getAppx, getPri: getPri, makeAppx: makeAppx, makePri: makePri };
