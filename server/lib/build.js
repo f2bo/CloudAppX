@@ -18,6 +18,8 @@ function getAppx(file) {
   return Q(file.xml)
     .then(getContents)
     .tap(function (file) { ctx = file; })
+    .then(makePri)
+    .thenResolve(ctx)
     .then(makeAppx)
     .finally(function () {
       if (ctx) {
@@ -53,6 +55,38 @@ function getLocalToolsPath(toolName) {
     .catch(function (err) {
       return Q.reject(new Error('Cannot find Windows 10 Kit Tools in the app folder (' + defaultToolsFolder + ').'));
     });
+}
+
+function makePri(file) {
+  if (os.platform() !== 'win32') {
+    return Q.reject(new Error('Cannot index Windows resources in the current platform.'));
+  }
+  
+  var toolName = 'makepri.exe';
+  return getLocalToolsPath(toolName)
+          .catch(function (err) {
+            return getWindowsKitPath(toolName);
+          })
+          .then(function (toolPath) {
+            var configPath = path.resolve(__dirname, '..', 'assets', 'priconfig.xml');
+            var priFilePath = path.resolve(file.dir, 'resources.pri');
+            cmdLine = '"' + toolPath + '" new /o /pr ' + file.dir + ' /cf ' + configPath + ' /of ' + priFilePath;
+            var deferred = Q.defer();
+            exec(cmdLine, function (err, stdout, stderr) {             
+              if (err) {
+                return deferred.reject(err);
+              }
+      
+              deferred.resolve({
+                dir: file.dir,
+                out: priFilePath,
+                stdout: stdout,
+                stderr: stderr
+              });
+            });
+
+            return deferred.promise;
+          });
 }
 
 function makeAppx(file) {
@@ -136,4 +170,4 @@ function deleteContents(ctx) {
           });
 }
 
-module.exports = { getAppx: getAppx, makeAppx: makeAppx };
+module.exports = { getAppx: getAppx, makeAppx: makeAppx, makePri: makePri };
