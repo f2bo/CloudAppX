@@ -112,6 +112,43 @@ app.post('/v2/build', multer({ dest: './uploads/' }), function (req, res) {
   }
 });
 
+app.post('/v2/makepri', multer({ dest: './uploads/' }), function (req, res) {
+  console.log('Building package...');
+  if (req.files) {
+    console.log(util.inspect(req.files));
+    var filepath;
+    build.getPri(req.files)
+      .then(function (file) {
+        filepath = file.out;
+        res.set('Content-type', 'application/octet-stream');
+        var reader = fs.createReadStream(filepath);
+        reader.on('end', function () {
+          console.log('Package download completed.');
+          res.status(201).end();
+        });
+        reader.on('error', function (err) {
+          console.log('Error streaming PRI file contents: ' + err);
+          res.status(500).send('PRI file download failed.').end();
+        });
+        reader.pipe(res);
+      })
+      .catch(function (err) {
+        console.log('PRI file generation failure: ' + err);
+        res.status(500).send('PRI file generation failed. ' + err).end();
+      })
+      .finally(function () {
+        if (filepath) {
+          var packageDir = path.dirname(filepath);
+          rmdir(packageDir)
+            .catch(function (err) {
+              console.log('Error deleting generated package: ' + err);
+            });
+        }
+      })
+      .done();
+  }
+});
+
 app.use(function (err, req, res, next) {
   console.error('Unhandled exception processing the APPX package: ' + err);
   res.status(500).send('There was an error generating the APPX package.');
