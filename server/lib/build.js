@@ -16,14 +16,23 @@ function getAppx(file) {
   var ctx;
   
   return Q(file.xml)
+    // unzip package content
     .then(getContents)
-    .then(function (file) { ctx = file; })
+    // generate PRI file
     .then(function (file) {
-      return makePri(ctx);
+      ctx = file;
+      return makePri(file);
     })
+    // move PRI file into package folder
     .then(function (file) {
-      return makeAppx(ctx);
+      var targetPath = path.resolve(file.dir, path.basename(file.out));
+      return Q.nfcall(fs.rename, file.out, targetPath).thenResolve(ctx);
     })
+    // generate APPX file
+    .then(function (file) {
+      return makeAppx(file);
+    })
+    // clean up package contents
     .finally(function () {
       if (ctx) {
         return deleteContents(ctx);
@@ -35,11 +44,14 @@ function getPri(file) {
   var ctx;
   
   return Q(file.xml)
+    // unzip package content
     .then(getContents)
-    .then(function (file) { ctx = file; })
+    // generate PRI file
     .then(function (file) {
+      ctx = file;
       return makePri(ctx);
     })
+    // clean up package contents
     .finally(function (file) {
       if (ctx) {
         return deleteContents(ctx);
