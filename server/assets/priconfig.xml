@@ -16,5 +16,6 @@
 			<qualifier name="Custom" value=""/>
 		</default>
 		<indexer-config type="folder" foldernameAsQualifier="true" filenameAsQualifier="true" qualifierDelimiter="."/>
+		<indexer-config type="resjson" initialPath=""/>
 	</index>
 </resources>
