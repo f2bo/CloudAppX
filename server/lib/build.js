@@ -100,8 +100,8 @@ function makePri(file) {
           })
           .then(function (toolPath) {
             var configPath = path.resolve(__dirname, '..', 'assets', 'priconfig.xml');
-            var priFilePath = path.join(file.out, file.name + '.pri');
-            cmdLine = '"' + toolPath + '" new /o /pr ' + file.dir + ' /cf ' + configPath + ' /of ' + priFilePath;
+            var priFilePath = path.join(file.out, 'resources.pri');
+            var cmdLine = '"' + toolPath + '" new /o /pr ' + file.dir + ' /cf ' + configPath + ' /of ' + priFilePath;
             var deferred = Q.defer();
             exec(cmdLine, function (err, stdout, stderr) {             
               if (err) {
@@ -132,7 +132,7 @@ function makeAppx(file) {
           })
           .then(function (toolPath) {
             var packagePath = path.join(file.out, file.name + '.appx');
-            cmdLine = '"' + toolPath + '" pack /o /d ' + file.dir + ' /p ' + packagePath + ' /l';
+            var cmdLine = '"' + toolPath + '" pack /o /d ' + file.dir + ' /p ' + packagePath + ' /l';
             var deferred = Q.defer();
             exec(cmdLine, function (err, stdout, stderr) {             
               if (err) {
