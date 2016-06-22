@@ -94,30 +94,38 @@ function makePri(file) {
   }
   
   var toolName = 'makepri.exe';
-  return getLocalToolsPath(toolName)
-          .catch(function (err) {
-            return getWindowsKitPath(toolName);
+  var priFilePath = path.join(file.out, 'resources.pri');
+  return Q.nfcall(fs.unlink, priFilePath).catch(function (err) {
+            // delete existing file and report any error other than not found
+            if (err.code !== 'ENOENT') {
+              throw err;
+            }    
           })
-          .then(function (toolPath) {
-            var configPath = path.resolve(__dirname, '..', 'assets', 'priconfig.xml');
-            var priFilePath = path.join(file.out, 'resources.pri');
-            var cmdLine = '"' + toolPath + '" new /o /pr ' + file.dir + ' /cf ' + configPath + ' /of ' + priFilePath;
-            var deferred = Q.defer();
-            exec(cmdLine, function (err, stdout, stderr) {             
-              if (err) {
-                return deferred.reject(err);
-              }
-      
-              deferred.resolve({
-                dir: file.dir,
-                out: priFilePath,
-                stdout: stdout,
-                stderr: stderr
+          .then (function () {
+            return getLocalToolsPath(toolName).catch(function (err) {
+              return getWindowsKitPath(toolName);
+            })
+            .then(function (toolPath) {
+              var configPath = path.resolve(__dirname, '..', 'assets', 'priconfig.xml');
+              var cmdLine = '"' + toolPath + '" new /o /pr ' + file.dir + ' /cf ' + configPath + ' /of ' + priFilePath;
+              var deferred = Q.defer();
+              exec(cmdLine, function (err, stdout, stderr) {             
+                if (err) {
+                  console.log(err.message);
+                  return deferred.reject(err);
+                }
+        
+                deferred.resolve({
+                  dir: file.dir,
+                  out: priFilePath,
+                  stdout: stdout,
+                  stderr: stderr
+                });
               });
-            });
 
-            return deferred.promise;
-          });
+              return deferred.promise;
+            });
+          })
 }
 
 function makeAppx(file) {
@@ -136,7 +144,13 @@ function makeAppx(file) {
             var deferred = Q.defer();
             exec(cmdLine, function (err, stdout, stderr) {             
               if (err) {
-                var errmsg = stdout.match(/error:.*/g).map(function (item) { return item.replace(/error:\s*/, ''); });
+                console.log(err.message);
+
+                var errmsg;
+                var toolErrors = stdout.match(/error:.*/g);
+                if (toolErrors) {
+                  errmsg = stdout.match(/error:.*/g).map(function (item) { return item.replace(/error:\s*/, ''); });
+                }
                 return deferred.reject(errmsg ? errmsg.join('\n') : 'MakeAppX failed.');
               }
       
