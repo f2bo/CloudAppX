@@ -88,6 +88,27 @@ function getLocalToolsPath(toolName) {
     });
 }
 
+// reads an app manifest and returns the package identity
+// see https://msdn.microsoft.com/en-us/library/windows/apps/br211441.aspx
+function getPackageIdentity(manifestPath) {
+  // defines a globally unique identifier for a package
+  var identityElement = /\<Identity\s+[^\>]+\>/;
+
+  // A string between 3 and 50 characters in length that consists of alpha-numeric, period, and dash characters
+  var nameAttribute = /Name="([A-Za-z0-9\-\.]+?)"/;
+
+  return Q.nfcall(fs.readFile, manifestPath).then(function (data) {
+    var identityMatch = data.toString().match(identityElement);
+    if (identityMatch) {
+      var nameMatch = identityMatch[0].match(nameAttribute);
+      if (nameMatch) {
+        return nameMatch[1];
+      }
+    }
+  });
+}
+
+// generates a resource index file (PRI)
 function makePri(file) {
   if (os.platform() !== 'win32') {
     return Q.reject(new Error('Cannot index Windows resources in the current platform.'));
@@ -106,24 +127,27 @@ function makePri(file) {
               return getWindowsKitPath(toolName);
             })
             .then(function (toolPath) {
-              var configPath = path.resolve(__dirname, '..', 'assets', 'priconfig.xml');
-              var cmdLine = '"' + toolPath + '" new /o /pr ' + file.dir + ' /cf ' + configPath + ' /of ' + priFilePath;
-              var deferred = Q.defer();
-              exec(cmdLine, function (err, stdout, stderr) {             
-                if (err) {
-                  console.log(err.message);
-                  return deferred.reject(err);
-                }
-        
-                deferred.resolve({
-                  dir: file.dir,
-                  out: priFilePath,
-                  stdout: stdout,
-                  stderr: stderr
+              var manifestPath = path.join(file.dir, 'appxmanifest.xml');
+              return getPackageIdentity(manifestPath).then(function (packageIdentity) {
+                var deferred = Q.defer();
+                var configPath = path.resolve(__dirname, '..', 'assets', 'priconfig.xml');
+                var cmdLine = '"' + toolPath + '" new /o /pr ' + file.dir + ' /cf ' + configPath + ' /of ' + priFilePath + ' /in ' + packageIdentity;
+                exec(cmdLine, function (err, stdout, stderr) {             
+                  if (err) {
+                    console.log(err.message);
+                    return deferred.reject(err);
+                  }
+          
+                  deferred.resolve({
+                    dir: file.dir,
+                    out: priFilePath,
+                    stdout: stdout,
+                    stderr: stderr
+                  });
                 });
-              });
 
-              return deferred.promise;
+                return deferred.promise;
+              });
             });
           })
 }
