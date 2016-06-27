@@ -92,7 +92,7 @@ function getLocalToolsPath(toolName) {
 // see https://msdn.microsoft.com/en-us/library/windows/apps/br211441.aspx
 function getPackageIdentity(manifestPath) {
   // defines a globally unique identifier for a package
-  var identityElement = /\<Identity\s+[^\>]+\>/;
+  var identityElement = /<Identity\s+[^>]+\>/;
 
   // A string between 3 and 50 characters in length that consists of alpha-numeric, period, and dash characters
   var nameAttribute = /Name="([A-Za-z0-9\-\.]+?)"/;
