@@ -1,12 +1,13 @@
 ﻿var fs = require('fs'),
     Q = require('q'),
-    exec = require('child_process').exec,
+    child_process = require('child_process'),
     util = require('util'),
     path = require('path'),
     unzip2 = require('unzip2'),
     os = require('os'),
     rmdir = Q.nfbind(require('rimraf')),
-    execute = Q.nfbind(exec),
+    execute = Q.nfbind(child_process.exec),
+    spawn = child_process.spawn,
     fsStat = Q.nfbind(fs.stat),
     readdir = Q.nfbind(fs.readdir);
 
@@ -117,39 +118,51 @@ function makePri(file) {
   var toolName = 'makepri.exe';
   var priFilePath = path.join(file.out, 'resources.pri');
   return Q.nfcall(fs.unlink, priFilePath).catch(function (err) {
-    // delete existing file and report any error other than not found
-    if (err.code !== 'ENOENT') {
-      throw err;
-    }    
-  })
-  .then (function () {
-    return getLocalToolsPath(toolName).catch(function (err) {
-      return getWindowsKitPath(toolName);
-    })
-    .then(function (toolPath) {
-      var manifestPath = path.join(file.dir, 'appxmanifest.xml');
-      return getPackageIdentity(manifestPath).then(function (packageIdentity) {
-        var deferred = Q.defer();
-        var configPath = path.resolve(__dirname, '..', 'assets', 'priconfig.xml');
-        var cmdLine = '"' + toolPath + '" new /o /pr ' + file.dir + ' /cf ' + configPath + ' /of ' + priFilePath + ' /in ' + packageIdentity;
-        exec(cmdLine, { maxBuffer: 1024*1024 }, function (err, stdout, stderr) {             
-          if (err) {
-            console.log(err.message);
-            return deferred.reject(err);
-          }
-  
-          deferred.resolve({
-            dir: file.dir,
-            out: priFilePath,
-            stdout: stdout,
-            stderr: stderr
-          });
-        });
+            // delete existing file and report any error other than not found
+            if (err.code !== 'ENOENT') {
+              throw err;
+            }    
+          })
+          .then (function () {
+            return getLocalToolsPath(toolName).catch(function (err) {
+              return getWindowsKitPath(toolName);
+            })
+            .then(function (toolPath) {
+              var manifestPath = path.join(file.dir, 'appxmanifest.xml');
+              return getPackageIdentity(manifestPath).then(function (packageIdentity) {
+                var deferred = Q.defer();
+                var configPath = path.resolve(__dirname, '..', 'assets', 'priconfig.xml');
+                var process = spawn(toolPath, 
+                                    ['/o',  '/pr', file.dir, '/cf', configPath, '/of ', priFilePath, '/in', packageIdentity]);
+                
+                var stdout = '', stderr = '';
+                process.stdout.on('data', function (data) { stdout += data; });
+                process.stderr.on('data', function (data) { stderr += data; });
+                
+                process.on('close', (code) => {
+                  if (code !== 0) {
+                    var toolErrors = stdout.match(/error.*/g);
+                    var errmsg = toolErrors ? toolErrors.map(function (item) { return item.replace(/error:*\s*/, ''); }) : 'MakePri failed.';
+  	                return deferred.reject(new Error(errmsg));
+                  }
 
-        return deferred.promise;
-      });
-    });
-  })
+                  deferred.resolve({
+                    dir: file.dir,
+                    out: priFilePath,
+                    stdout: stdout,
+                    stderr: stderr,
+                    code: code
+                  });
+                });
+                
+                process.on('error', function (err) {
+	                deferred.reject(err);
+                });
+
+                return deferred.promise;
+              });
+            });
+          })
 }
 
 function makeAppx(file) {
@@ -158,35 +171,50 @@ function makeAppx(file) {
   }
   
   var toolName = 'makeappx.exe';
-  return getLocalToolsPath(toolName).catch(function (err) {
-    return getWindowsKitPath(toolName);
-  })
-  .then(function (toolPath) {
-    var packagePath = path.join(file.out, file.name + '.appx');
-    var cmdLine = '"' + toolPath + '" pack /o /d ' + file.dir + ' /p ' + packagePath + ' /l';
-    var deferred = Q.defer();
-    exec(cmdLine, { maxBuffer: 1024*1024 }, function (err, stdout, stderr) {             
-      if (err) {
-        console.log(err.message);
+  return getLocalToolsPath(toolName)
+          .catch(function (err) {
+            return getWindowsKitPath(toolName);
+          })
+          .then(function (toolPath) {
+            var deferred = Q.defer();
+            var packagePath = path.join(file.out, file.name + '.appx');
+            var process = spawn('"' + toolPath + '"', ['pack', '/o', '/d', file.dir, '/p', packagePath, '/l']);
+            
+            var stdout = '', stderr = '';
+            process.stdout.on('data', function (data) { stdout += data; });
+            process.stderr.on('data', function (data) { stderr += data; });
+            
+            process.on('close', (code) => {
+              if (code !== 0) {
+                var toolErrors = stdout.match(/error:.*/g);
+                var errmsg = toolErrors ? toolErrors.map(function (item) { return item.replace(/error:\s*/, ''); }) : 'MakePri failed.';
+                return deferred.reject(new Error(errmsg));
+              }
 
-        var errmsg;
-        var toolErrors = stdout.match(/error:.*/g);
-        if (toolErrors) {
-          errmsg = stdout.match(/error:.*/g).map(function (item) { return item.replace(/error:\s*/, ''); });
-        }
-        return deferred.reject(errmsg ? errmsg.join('\n') : 'MakeAppX failed.');
-      }
+              deferred.resolve({
+                dir: file.dir,
+                out: packagePath,
+                stdout: stdout,
+                stderr: stderr,
+                code: code
+              });
+            });
+            
+            process.on('error', function (err) {
+              var errmsg;
+              var toolErrors = stdout.match(/error:.*/g);
+              if (toolErrors) {
+                errmsg = toolErrors.map(function (item) { return item.replace(/error:\s*/, ''); });
+              }
+              else {
+                errmsg = err.message;
+              }
 
-      deferred.resolve({
-        dir: file.dir,
-        out: packagePath,
-        stdout: stdout,
-        stderr: stderr
-      });
-    });
+              deferred.reject(errmsg ? errmsg.join('\n') : 'MakeAppX failed.');
+            });
 
-    return deferred.promise;
-  });
+            return deferred.promise;
+          });
 }
 
 function getContents(file) {
