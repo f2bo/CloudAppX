@@ -75,12 +75,15 @@ app.get('/v2/test', function (req, res) {
   res.send('Welcome to CloudAppX');
 });
 
-app.post('/v2/build', multer({ dest: './uploads/' }), function (req, res) {
+app.post('/v2/build', multer({ dest: './uploads/' }), function (req, res) { buildPackage(req, res, false); });
+app.post('/v3/build', multer({ dest: './uploads/' }), function (req, res) { buildPackage(req, res, true); });
+
+function buildPackage (req, res, runMakePri) {
   console.log('Building package...');
   if (req.files) {
     console.log(util.inspect(req.files));
     var filepath;
-    build.getAppx(req.files)
+    build.getAppx(req.files, runMakePri)
       .then(function (file) {
         filepath = file.out;
         res.set('Content-type', 'application/octet-stream');
@@ -110,9 +113,9 @@ app.post('/v2/build', multer({ dest: './uploads/' }), function (req, res) {
       })
       .done();
   }
-});
+}
 
-app.post('/v2/makepri', multer({ dest: './uploads/' }), function (req, res) {
+app.post('/v3/makepri', multer({ dest: './uploads/' }), function (req, res) {
   console.log('Indexing app resources...');
   if (req.files) {
     console.log(util.inspect(req.files));

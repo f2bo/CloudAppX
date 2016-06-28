@@ -12,26 +12,23 @@
 
 var defaultToolsFolder = 'appxsdk';
 
-function getAppx(file) {
+function getAppx(file, runMakePri) {
   var ctx;
-  
   return Q(file.xml)
     // unzip package content
     .then(getContents)
     // generate PRI file
-    .then(function (file) {
-      ctx = file;
-      return makePri(file);
-    })
-    // move PRI file into package folder
-    .then(function (file) {
-      var targetPath = path.resolve(file.dir, path.basename(file.out));
-      return Q.nfcall(fs.rename, file.out, targetPath).thenResolve(ctx);
+    .then(function (fileInfo) {
+      ctx = fileInfo;
+      if (!runMakePri) return fileInfo;
+      return makePri(fileInfo, true).then(function (priFile) {
+        // move PRI file into package folder
+        var targetPath = path.join(fileInfo.dir, path.basename(priFile.out));
+        return Q.nfcall(fs.rename, priFile.out, targetPath).thenResolve(fileInfo);
+      });
     })
     // generate APPX file
-    .then(function (file) {
-      return makeAppx(file);
-    })
+    .then(makeAppx)
     // clean up package contents
     .finally(function () {
       if (ctx) {
@@ -47,12 +44,12 @@ function getPri(file) {
     // unzip package content
     .then(getContents)
     // generate PRI file
-    .then(function (file) {
+    .then(function (fileInfo) {
       ctx = file;
-      return makePri(ctx);
+      return makePri(fileInfo);
     })
     // clean up package contents
-    .finally(function (file) {
+    .finally(function () {
       if (ctx) {
         return deleteContents(ctx);
       }
@@ -109,13 +106,13 @@ function getPackageIdentity(manifestPath) {
 }
 
 // generates a resource index file (PRI)
-function makePri(file) {
+function makePri(fileInfo, splitFiles) {
   if (os.platform() !== 'win32') {
     return Q.reject(new Error('Cannot index Windows resources in the current platform.'));
   }
   
   var toolName = 'makepri.exe';
-  var priFilePath = path.join(file.out, 'resources.pri');
+  var priFilePath = path.join(fileInfo.dir, 'resources.pri');
   return Q.nfcall(fs.unlink, priFilePath).catch(function (err) {
     // delete existing file and report any error other than not found
     if (err.code !== 'ENOENT') {
@@ -127,11 +124,11 @@ function makePri(file) {
       return getWindowsKitPath(toolName);
     })
     .then(function (toolPath) {
-      var manifestPath = path.join(file.dir, 'appxmanifest.xml');
+      var manifestPath = path.join(fileInfo.dir, 'appxmanifest.xml');
       return getPackageIdentity(manifestPath).then(function (packageIdentity) {
         var deferred = Q.defer();
-        var configPath = path.resolve(__dirname, '..', 'assets', 'priconfig.xml');
-        var cmdLine = '"' + toolPath + '" new /o /pr ' + file.dir + ' /cf ' + configPath + ' /of ' + priFilePath + ' /in ' + packageIdentity;
+        var configPath = path.resolve(__dirname, '..', 'assets', splitFiles ? 'priconfig.split.xml' : 'priconfig.xml');
+        var cmdLine = '"' + toolPath + '" new /o /pr ' + fileInfo.dir + ' /cf ' + configPath + ' /of ' + priFilePath + ' /in ' + packageIdentity;
         exec(cmdLine, { maxBuffer: 1024*1024 }, function (err, stdout, stderr) {             
           if (err) {
             console.log(err.message);
@@ -139,7 +136,7 @@ function makePri(file) {
           }
   
           deferred.resolve({
-            dir: file.dir,
+            dir: fileInfo.dir,
             out: priFilePath,
             stdout: stdout,
             stderr: stderr
@@ -152,7 +149,7 @@ function makePri(file) {
   })
 }
 
-function makeAppx(file) {
+function makeAppx(fileInfo) {
   if (os.platform() !== 'win32') {
     return Q.reject(new Error('Cannot generate a Windows Store package in the current platform.'));
   }
@@ -162,8 +159,8 @@ function makeAppx(file) {
     return getWindowsKitPath(toolName);
   })
   .then(function (toolPath) {
-    var packagePath = path.join(file.out, file.name + '.appx');
-    var cmdLine = '"' + toolPath + '" pack /o /d ' + file.dir + ' /p ' + packagePath + ' /l';
+    var packagePath = path.join(fileInfo.out, fileInfo.name + '.appx');
+    var cmdLine = '"' + toolPath + '" pack /o /d ' + fileInfo.dir + ' /p ' + packagePath + ' /l';
     var deferred = Q.defer();
     exec(cmdLine, { maxBuffer: 1024*1024 }, function (err, stdout, stderr) {             
       if (err) {
@@ -178,7 +175,7 @@ function makeAppx(file) {
       }
 
       deferred.resolve({
-        dir: file.dir,
+        dir: fileInfo.dir,
         out: packagePath,
         stdout: stdout,
         stderr: stderr
